@@ -1,0 +1,11 @@
+# Phase 0 to 3. We add more as we go, one phase at a time, so you always
+# know why every dependency is here.
+openai>=1.60.0        # OpenAI-compatible client. We point it at Groq's free endpoint.
+python-dotenv>=1.0.1  # Loads the API key from .env so it never touches git.
+requests>=2.32.0       # Phase 1. Lets Python make a real web request to OpenStreetMap.
+supabase>=2.10.0        # Phase 5. Official client for saving and reading from our database.
+mcp[cli]>=2.0.0          # MCP phase. Official SDK for building and connecting to MCP servers.
+Pillow>=11.0.0           # Phase 7.5. Resize real oversized photos before sending to the vision API.
+langgraph>=1.2.11        # Phase 8. Rebuilds the orchestrator's loop as a real graph.
+fastapi>=0.141.1         # Phase 9. Real web server so a website can talk to the agents.
+uvicorn[standard]>=0.52.1 # Phase 9. Actually runs the real FastAPI server.

@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.ipynb_checkpoints/
+data/*.sqlite
+data/*.db
+data/raw/
+.DS_Store
+
+# Real personal photos, never belong in a public repo. Every photo the
+# app actually uses at runtime already lives in Supabase Storage with
+# a real public URL, the code never reads these local files directly.
+closet/

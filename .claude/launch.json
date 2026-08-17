@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "review-page",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8731"],
+      "port": 8731
+    },
+    {
+      "name": "personal-agent-api",
+      "runtimeExecutable": "/Users/boo/Documents/personal-agent/.venv/bin/uvicorn",
+      "runtimeArgs": ["api:app", "--reload", "--port", "8811", "--app-dir", "/Users/boo/Documents/personal-agent/agent"],
+      "port": 8811
+    }
+  ]
+}
