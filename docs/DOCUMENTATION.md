@@ -1455,6 +1455,81 @@ items and all 22 real inspiration items load with working real signed
 URLs, and the same fix carried into the Docker image and reverified
 there too.
 
+**Deployed: `wanderwear-agent`, live on Render.** Real public GitHub
+repo created (`github.com/yelurusreejareddy/wanderwear-agent`), real
+`.gitignore` scoping out `closet/` (actual personal photos) and `.env`
+before the first push, one real git hiccup (GitHub had auto-created a
+LICENSE file on repo creation, fixed with `git fetch` +
+`git merge --allow-unrelated-histories`), verified afterward that
+neither `.env` nor `closet/` made it to the remote. Render's free web
+service tier picked up the `Dockerfile` automatically, real environment
+variables entered by hand in Render's dashboard (never committed), a
+real Health Check Path pointed at `/health`, Auto-Deploy on every push
+to `main` turned on. Verified live end to end: `/docs` loads, a real
+`/style-me` call over the public internet returned a correct outfit
+with a working real signed photo URL. An early `curl /health` returning
+404/405 was investigated, not assumed to be a real bug, cross-checked
+against `/openapi.json` (route genuinely registered) and Render's own
+logs (real, continuous `200 OK` from Render's internal health monitor)
+before concluding it was transient DNS/edge propagation during rollout,
+not a real fault.
+
+**Phase 11, real tests: done and verified.** Before wiring up GitHub
+Actions CI/CD, wrote real, passing tests first rather than starting
+automation with nothing for it to actually check. `tests/test_distance.py`
+and `tests/test_llm_utils.py` are pure unit tests, no API, no network,
+no env vars, testing `calculate_distance` against a real known
+Chicago-to-New-York distance and `extract_json` against the real
+IMG_2652.PNG-shaped bug (JSON wrapped in extra text) it was written to
+fix. `tests/test_api.py` uses FastAPI's own `TestClient` to hit
+`/health` and to confirm Pydantic request validation on `/plan-trip`
+and `/style-me` genuinely rejects a bad request (real 422), without
+ever calling the real Groq or Supabase APIs, that would cost real
+tokens and be flaky in CI. `tests/conftest.py` sets fake, clearly-fake
+env vars before `api.py` imports, a real, live-confirmed necessity:
+`loop.py` builds a real `OpenAI` client at import time and genuinely
+raises immediately if `LLM_API_KEY` is missing, so importing `api.py`
+in CI with no real `.env` would crash before a single test could even
+run. One real bug found running these for the first time: FastAPI's
+`TestClient` re-raises an in-endpoint exception by default instead of
+turning it into a real 500 response, so calling `/style-me` with the
+fake test Supabase URL (which genuinely fails to resolve in DNS)
+failed the test for the wrong reason; fixed with
+`TestClient(app, raise_server_exceptions=False)`. All 12 real tests
+pass locally (`pytest tests/`).
+
+**A real TDD pass, red then green, before CI/CD gets wired up.** Two
+more real gaps found, not fabricated ones: `calculate_distance` had no
+bounds check, so an out-of-range latitude/longitude (999, or -200)
+would silently compute a meaningless number instead of failing, a real
+risk since these coordinates can come from an LLM's own tool call.
+`/style-me`'s `rejected_ids` had no constraint at all, so a negative
+number, never a real Supabase row id, was silently accepted and passed
+downstream instead of rejected. Wrote the real tests for the desired
+behavior FIRST (`test_invalid_latitude_raises`,
+`test_invalid_longitude_raises`, `test_style_me_rejects_negative_rejected_id`),
+ran the suite, watched all three genuinely fail (12 passed, 3 failed),
+a real red build. Then wrote the real fixes: `distance.py` now raises
+`ValueError` outside real lat/lon bounds, `api.py`'s `StyleRequest`
+now constrains `rejected_ids` to `Annotated[int, Field(gt=0)]`. Reran,
+all 15 passed, a real green build. This is the exact same red-then-green
+cycle GitHub Actions will show automatically once phase 11's workflow
+is wired up, just run by hand first, once, to see it directly before
+automating it.
+
+**Phase 11, GitHub Actions: done and verified.**
+`.github/workflows/tests.yml` added, a real, standard GitHub Actions
+workflow, `actions/checkout` then `actions/setup-python`, both
+GitHub's own official actions, installs `requirements.txt`, then runs
+`pytest tests/ -v`. Triggers on every real `push` and every real
+`pull_request`. Runs with zero real secrets, on purpose:
+`tests/conftest.py` already sets fake, clearly-fake env vars, and none
+of the 15 real tests ever call the real Groq or Supabase APIs, so
+GitHub's servers never need any of this project's actual credentials
+to run them. Free for a public repo like `wanderwear-agent`, GitHub
+does not count public-repo minutes against any quota at all, no card,
+no real cost, matching the project's no-spend rule.
+
 ---
 
 ## 7. Cloud hosting and costs

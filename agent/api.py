@@ -5,11 +5,11 @@ free) can talk to them over HTTP instead of only running them from a
 terminal. This file adds zero new agent logic, it only exposes what
 loop_langgraph.py and stylist.py already do.
 """
-from typing import Optional
+from typing import Annotated, Optional
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from loop_langgraph import run_agent
 from stylist import get_outfit_suggestion_for_trip
@@ -45,7 +45,11 @@ class TripResponse(BaseModel):
 
 class StyleRequest(BaseModel):
     request: str
-    rejected_ids: list[int] = []
+    # A real Supabase row id is a serial primary key, it always starts
+    # at 1, it can never be zero or negative. Field(gt=0) makes that a
+    # real, enforced constraint, so a bad id is rejected here, as a
+    # real 422, instead of being silently passed downstream.
+    rejected_ids: list[Annotated[int, Field(gt=0)]] = []
 
 
 class OutfitItem(BaseModel):

@@ -12,6 +12,19 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     """Return the real distance in miles between two lat/lon points,
     following the curve of the Earth, not a flat straight line."""
 
+    # These coordinates can come from an LLM's own tool call, the same
+    # real reason this project already guards against calling
+    # coordinate tools before a real geocode_city call. A real latitude
+    # is only ever -90 to 90, a real longitude only -180 to 180,
+    # anything outside that isn't a real point on Earth, fail loudly
+    # instead of silently returning a meaningless number.
+    for lat in (lat1, lat2):
+        if not -90 <= lat <= 90:
+            raise ValueError(f"{lat} is not a real latitude, must be between -90 and 90")
+    for lon in (lon1, lon2):
+        if not -180 <= lon <= 180:
+            raise ValueError(f"{lon} is not a real longitude, must be between -180 and 180")
+
     # The Haversine formula needs angles in radians, not the degrees
     # latitude and longitude are normally given in, so we convert first.
     lat1_rad = math.radians(lat1)

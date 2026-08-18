@@ -1,0 +1,40 @@
+# Real GitHub Actions workflow: phase 11. On every real push, and
+# every real pull request, GitHub's own servers spin up, install our
+# real dependencies, and run our real tests, before anything about the
+# commit is trusted. This file adds no new tests, it only automates
+# running the ones already in tests/.
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    # A real, fresh Ubuntu machine, GitHub provides this free for a
+    # public repo, no card, no real cost, per the same no-spend rule
+    # this whole project follows.
+    runs-on: ubuntu-latest
+
+    steps:
+      # Real, official GitHub Actions, "actions/..." is GitHub's own
+      # namespace, this is a normal, trusted real pattern, not
+      # something specific to this project.
+      - name: Check out the real code
+        uses: actions/checkout@v4
+
+      - name: Set up real Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install real dependencies
+        run: pip install -r requirements.txt
+
+      # No real secrets needed here on purpose. tests/conftest.py sets
+      # fake, clearly-fake env vars before api.py imports, and our
+      # tests never call the real Groq or Supabase APIs, that would
+      # cost real tokens and be flaky in CI. So this real job runs with
+      # zero real credentials on GitHub's servers at all.
+      - name: Run real tests
+        run: pytest tests/ -v

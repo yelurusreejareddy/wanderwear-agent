@@ -9,3 +9,5 @@ Pillow>=11.0.0           # Phase 7.5. Resize real oversized photos before sendin
 langgraph>=1.2.11        # Phase 8. Rebuilds the orchestrator's loop as a real graph.
 fastapi>=0.141.1         # Phase 9. Real web server so a website can talk to the agents.
 uvicorn[standard]>=0.52.1 # Phase 9. Actually runs the real FastAPI server.
+pytest>=8.3.0             # Phase 11. Runs our real tests, by hand and in CI.
+httpx>=0.28.1              # Phase 11. FastAPI's own TestClient is built on this.
