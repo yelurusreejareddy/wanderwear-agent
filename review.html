@@ -9,11 +9,17 @@ from Supabase using the public anon key. Once the real photo buckets
 were locked down to private, that stopped working for images, only a
 real, privileged service-role key can generate a real signed URL, and
 that key must never live in a plain file a browser can read. So photo
-LOADING now goes through the real local API server instead
-(agent/api.py's /wardrobe and /inspiration), which holds that
-privileged key safely on the backend. SAVING an edit still talks to
-Supabase directly with the public anon key, that part was always safe,
-it only ever touches real text fields, never a real photo.
+LOADING goes through the real local API server instead (agent/api.py's
+/wardrobe and /inspiration), which holds that privileged key safely on
+the backend.
+
+Real, phase 12 update: real per-user RLS now protects wardrobe_items
+and style_inspiration too, so even the "always safe, text-only" SAVE
+calls need a real, logged-in identity now, the plain anon key alone
+has no real auth.uid() for RLS to check. This page now asks for a real
+login (email + password, POST /login through the local API, never
+sent straight to Supabase from here) before loading anything, and
+reuses that one real token for every read and every save below.
 -->
 <!DOCTYPE html>
 <html>
@@ -23,6 +29,10 @@ it only ever touches real text fields, never a real photo.
 <style>
   body { font-family: -apple-system, sans-serif; background: #faf9f7; margin: 0; padding: 20px; }
   h1 { font-size: 20px; }
+  .login-box { max-width: 320px; margin-top: 60px; }
+  .login-box input { width: 100%; box-sizing: border-box; margin-bottom: 8px; padding: 8px; font-size: 14px; border: 1px solid #ddd; border-radius: 4px; }
+  .login-box button { padding: 8px 14px; cursor: pointer; }
+  .login-error { color: #b00020; font-size: 13px; margin-top: 8px; }
   .tabs { margin-bottom: 16px; }
   .tabs button { padding: 8px 16px; margin-right: 8px; border: 1px solid #ccc; background: white; cursor: pointer; border-radius: 6px; }
   .tabs button.active { background: #333; color: white; }
@@ -37,25 +47,74 @@ it only ever touches real text fields, never a real photo.
 </head>
 <body>
 
-<h1>Real wardrobe + inspiration review</h1>
-<div class="tabs">
-  <button id="tab-wardrobe" class="active" onclick="showTab('wardrobe')">Wardrobe (owned)</button>
-  <button id="tab-inspiration" onclick="showTab('inspiration')">Inspiration (saved styles)</button>
+<div id="login-view" class="login-box">
+  <h1>Log in</h1>
+  <input id="login-email" type="email" placeholder="email">
+  <input id="login-password" type="password" placeholder="password">
+  <button onclick="login()">Log in</button>
+  <div id="login-error" class="login-error"></div>
 </div>
 
-<div id="grid-wardrobe" class="grid"></div>
-<div id="grid-inspiration" class="grid" style="display:none;"></div>
+<div id="main-view" style="display:none;">
+  <h1>Real wardrobe + inspiration review</h1>
+  <div class="tabs">
+    <button id="tab-wardrobe" class="active" onclick="showTab('wardrobe')">Wardrobe (owned)</button>
+    <button id="tab-inspiration" onclick="showTab('inspiration')">Inspiration (saved styles)</button>
+  </div>
+
+  <div id="grid-wardrobe" class="grid"></div>
+  <div id="grid-inspiration" class="grid" style="display:none;"></div>
+</div>
 
 <script>
 const SUPABASE_URL = "https://jjjpcjzymegqjiqfnadu.supabase.co";
 const SUPABASE_KEY = "sb_publishable_9hYCLWzspXQ-VkCXs7ygOA_Uk0vKpqu";
 const API_URL = "http://127.0.0.1:8811";
 
-const HEADERS = {
-  "apikey": SUPABASE_KEY,
-  "Authorization": "Bearer " + SUPABASE_KEY,
-  "Content-Type": "application/json",
-};
+// Real, phase 12: filled in by login() below, after a real
+// POST /login call, never hardcoded, never anyone's real password
+// stored here, just the short-lived real token that call returns.
+let REAL_ACCESS_TOKEN = null;
+
+async function login() {
+  const email = document.getElementById("login-email").value;
+  const password = document.getElementById("login-password").value;
+  const errorBox = document.getElementById("login-error");
+  errorBox.textContent = "";
+
+  try {
+    const res = await fetch(`${API_URL}/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) {
+      errorBox.textContent = "Real login failed, check email/password.";
+      return;
+    }
+    const data = await res.json();
+    REAL_ACCESS_TOKEN = data.access_token;
+
+    document.getElementById("login-view").style.display = "none";
+    document.getElementById("main-view").style.display = "block";
+    loadWardrobe();
+    loadInspiration();
+  } catch (err) {
+    errorBox.textContent = "Could not reach the real local API server, is it running?";
+  }
+}
+
+// Real headers for talking straight to Supabase (the PATCH saves
+// below): apikey stays the public, project-identifying anon key,
+// Authorization carries the real, logged-in user's own token, that's
+// the one RLS actually checks with auth.uid().
+function supabaseHeaders() {
+  return {
+    "apikey": SUPABASE_KEY,
+    "Authorization": "Bearer " + REAL_ACCESS_TOKEN,
+    "Content-Type": "application/json",
+  };
+}
 
 function showTab(name) {
   document.getElementById("grid-wardrobe").style.display = name === "wardrobe" ? "grid" : "none";
@@ -68,7 +127,11 @@ async function loadWardrobe() {
   // Real photos, real signed URLs, generated fresh by our own real
   // backend, which is the only thing allowed to hold the privileged
   // key that can do that. Never fetched straight from Supabase anymore.
-  const res = await fetch(`${API_URL}/wardrobe`);
+  // Real, phase 12: also requires the real login token, /wardrobe
+  // filters to this real user's own rows now.
+  const res = await fetch(`${API_URL}/wardrobe`, {
+    headers: { "Authorization": "Bearer " + REAL_ACCESS_TOKEN },
+  });
   const items = await res.json();
   const grid = document.getElementById("grid-wardrobe");
   grid.innerHTML = "";
@@ -98,7 +161,7 @@ async function saveWardrobe(id, button) {
   };
   await fetch(`${SUPABASE_URL}/rest/v1/wardrobe_items?id=eq.${id}`, {
     method: "PATCH",
-    headers: { ...HEADERS, "Prefer": "return=minimal" },
+    headers: { ...supabaseHeaders(), "Prefer": "return=minimal" },
     body: JSON.stringify(body),
   });
   card.querySelector(".status").textContent = "saved";
@@ -107,8 +170,11 @@ async function saveWardrobe(id, button) {
 
 async function loadInspiration() {
   // Same real reason as loadWardrobe: real signed URLs from our own
-  // backend, not a direct, now-blocked call to Supabase.
-  const res = await fetch(`${API_URL}/inspiration`);
+  // backend, not a direct, now-blocked call to Supabase, plus the
+  // same real login token.
+  const res = await fetch(`${API_URL}/inspiration`, {
+    headers: { "Authorization": "Bearer " + REAL_ACCESS_TOKEN },
+  });
   const items = await res.json();
   const grid = document.getElementById("grid-inspiration");
   grid.innerHTML = "";
@@ -141,7 +207,7 @@ async function saveInspiration(id, button) {
   };
   await fetch(`${SUPABASE_URL}/rest/v1/style_inspiration?id=eq.${id}`, {
     method: "PATCH",
-    headers: { ...HEADERS, "Prefer": "return=minimal" },
+    headers: { ...supabaseHeaders(), "Prefer": "return=minimal" },
     body: JSON.stringify(body),
   });
   card.querySelector(".status").textContent = "saved";
@@ -154,8 +220,8 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-loadWardrobe();
-loadInspiration();
+// Real, phase 12: no longer called unconditionally on page load, both
+// now only run once login() confirms a real, valid session.
 </script>
 
 </body>

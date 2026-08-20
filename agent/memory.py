@@ -2,32 +2,32 @@
 memory.py -- phase 5: saving and reading real memory from Supabase.
 Every question and answer the agent gives gets saved here, so a future run
 can look back at what happened before instead of starting from zero.
+
+Phase 12 update: trips is now real, per-user data (see migration 0010),
+RLS only lets a real, logged-in user see or write their own real rows.
+get_client() (auth_context.py) hands back whichever real identity is
+actually asking right now, an HTTP request's real logged-in user, or a
+real CLI login, this file never has to know or care which.
 """
-import os
-
-from dotenv import load_dotenv
-from supabase import create_client
-
-load_dotenv()
-
-# Same pattern as loop.py's Groq client: one object that knows where the
-# database is (SUPABASE_URL) and who's asking (SUPABASE_KEY), built once
-# and reused for every save or read.
-supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
+from auth_context import get_client, get_user_id
 
 
 def save_trip(question, answer):
-    """Save one real question and its real answer into the trips table."""
-    supabase.table("trips").insert({
+    """Save one real question and its real answer into the trips table,
+    tagged with whichever real user is asking right now."""
+    get_client().table("trips").insert({
         "question": question,
         "answer": answer,
+        "user_id": get_user_id(),
     }).execute()
 
 
 def get_recent_trips(limit=5):
-    """Read back the most recently saved trips, newest first."""
+    """Read back the most recently saved trips, newest first, RLS
+    already limits this to the real, current user's own rows."""
     response = (
-        supabase.table("trips")
+        get_client()
+        .table("trips")
         .select("*")
         .order("created_at", desc=True)
         .limit(limit)

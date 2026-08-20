@@ -10,15 +10,14 @@ import os
 
 from dotenv import load_dotenv
 from openai import OpenAI
-from supabase import create_client
 
+from auth_context import get_client
 from llm_utils import extract_json
 from photo_access import sign_photo_url
 
 load_dotenv()
 
 client = OpenAI(api_key=os.getenv("LLM_API_KEY"), base_url=os.getenv("LLM_BASE_URL"))
-supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
 # The main model, not the smaller critic/vision ones, real outfit
 # reasoning over dozens of real items at once is a genuine primary task,
@@ -75,14 +74,17 @@ SYSTEM_PROMPT = (
 
 
 def _get_full_wardrobe():
-    """Every real item currently in the real wardrobe_items table."""
-    response = supabase.table("wardrobe_items").select("*").execute()
+    """Every real item currently in the real wardrobe_items table,
+    RLS (phase 12) already limits this to the real, current user's
+    own rows."""
+    response = get_client().table("wardrobe_items").select("*").execute()
     return response.data
 
 
 def _get_full_inspiration():
-    """Every real saved style photo currently in style_inspiration."""
-    response = supabase.table("style_inspiration").select("*").execute()
+    """Every real saved style photo currently in style_inspiration,
+    same real per-user limit as _get_full_wardrobe."""
+    response = get_client().table("style_inspiration").select("*").execute()
     return response.data
 
 

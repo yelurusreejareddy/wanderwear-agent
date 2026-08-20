@@ -12,14 +12,17 @@ import re
 import time
 
 from dotenv import load_dotenv
-from supabase import create_client
 
 from inspiration_vision import draft_inspiration_label
 from photo_access import service_client
+from auth_context import get_user_id
 
 load_dotenv()
 
-supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
+# Phase 12: same real reason as wardrobe_catalog.py, an admin-only
+# batch script, real writes go through the privileged service_client,
+# tagged with the real, logged-in owner id.
+supabase = service_client
 
 INSPOS_DIR = "/Users/boo/Documents/personal-agent/closet/inspos"
 
@@ -27,7 +30,14 @@ SECONDS_BETWEEN_VISION_CALLS = 2.5
 
 
 def _already_cataloged():
-    response = supabase.table("style_inspiration").select("file_name").execute()
+    # Filtered to the real, current user's own rows, same real reason
+    # as wardrobe_catalog.py's own version of this function.
+    response = (
+        supabase.table("style_inspiration")
+        .select("file_name")
+        .eq("user_id", get_user_id())
+        .execute()
+    )
     return {row["file_name"] for row in response.data}
 
 
@@ -81,6 +91,7 @@ def catalog_all_inspiration():
                 "description": label.get("description"),
                 "source_brand": label.get("source_brand"),
                 "source_product_name": label.get("source_product_name"),
+                "user_id": get_user_id(),
             }).execute()
 
             cataloged += 1

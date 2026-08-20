@@ -13,14 +13,21 @@ import re
 import time
 
 from dotenv import load_dotenv
-from supabase import create_client
 
 from wardrobe_vision import draft_label
 from photo_access import service_client
+from auth_context import get_user_id
 
 load_dotenv()
 
-supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
+# Phase 12: this is a real, admin-only batch script, always run
+# directly by Sreeja, never through the API. It already uses the
+# privileged service_client for photo storage, now the real
+# wardrobe_items writes go through it too, tagged with her real user
+# id (get_user_id() logs in with CLI_EMAIL/CLI_PASSWORD from .env),
+# since service_client bypasses RLS and needs to set the real owner
+# itself.
+supabase = service_client
 
 CLOSET_DIR = "/Users/boo/Documents/personal-agent/closet"
 
@@ -32,8 +39,16 @@ SECONDS_BETWEEN_VISION_CALLS = 2.5
 
 def _already_cataloged():
     """Real file names already saved in wardrobe_items, so a second run of
-    this script does not re-upload or re-tag the same real photo twice."""
-    response = supabase.table("wardrobe_items").select("file_name").execute()
+    this script does not re-upload or re-tag the same real photo twice.
+    Filtered to the real, current user's own rows, service_client
+    bypasses RLS, so this table-level filter is what actually limits
+    it, not the database."""
+    response = (
+        supabase.table("wardrobe_items")
+        .select("file_name")
+        .eq("user_id", get_user_id())
+        .execute()
+    )
     return {row["file_name"] for row in response.data}
 
 
@@ -113,6 +128,7 @@ def catalog_all_photos():
                 "category": label.get("category"),
                 "color": label.get("color"),
                 "style_notes": label.get("style_notes"),
+                "user_id": get_user_id(),
             }).execute()
 
             cataloged += 1

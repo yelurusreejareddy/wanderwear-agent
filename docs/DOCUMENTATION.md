@@ -1530,6 +1530,62 @@ to run them. Free for a public repo like `wanderwear-agent`, GitHub
 does not count public-repo minutes against any quota at all, no card,
 no real cost, matching the project's no-spend rule.
 
+**Phase 12, real Supabase Auth + per-user RLS: done and verified end
+to end.** Went with the full, real multi-user version, not an
+admin-only shortcut, since the real goal is eventually letting someone
+else use their own copy safely. Real account created directly in
+Supabase's Auth dashboard (not through any public signup flow, none
+exists yet). Migration `0010_add_user_id_and_per_user_rls.sql`: added
+`user_id uuid references auth.users(id)` to `trips`, `wardrobe_items`,
+`style_inspiration`, backfilled every existing real row with Sreeja's
+real new account id, made the column `not null` with no default on
+purpose (a silent default would keep assigning a second real user's
+data to the wrong account), replaced every `temporary_allow_all_access`
+policy with `auth.uid() = user_id`.
+
+New `agent/auth_context.py`: real per-request identity via Python's
+own `contextvars.ContextVar`, not a shared mutable client, which would
+be a genuine, live concurrency bug the moment two real users' requests
+land close together. `api.py`'s new `require_user` dependency verifies
+a real, valid token against Supabase itself, builds a fresh
+per-request client carrying that exact token, and stores it in the
+ContextVar. `memory.py` and `stylist.py` read it back internally
+(`get_client()`/`get_user_id()`), so their own function signatures,
+and every call site inside `loop.py` (deliberately never touched, same
+rule as phase 8), never had to change at all. `wardrobe_catalog.py`
+and `inspiration_catalog.py`, real admin-only batch scripts, always
+run directly by Sreeja, switched to writing through the privileged
+`service_client` instead, real user id set explicitly since
+`service_client` bypasses RLS by design. New `POST /login` (plain anon
+client, `sign_in_with_password`) and `require_user` guard every other
+real endpoint. `/wardrobe` and `/inspiration` needed one more explicit
+fix: `service_client` bypasses RLS, so they now filter
+`.eq("user_id", user_id)` themselves, the database's own per-user
+enforcement does nothing for a privileged key. `review.html` gained a
+real login screen, both its GET calls (through the API) and its PATCH
+saves (straight to Supabase) needed the real, logged-in token, the old
+"saving is always safe, it's just text" assumption stopped being true
+the moment RLS started checking a real identity there too.
+
+One real bug found live-testing this end to end, not assumed away: a
+real, valid, logged-in request to `/style-me` failed with "permission
+denied for table wardrobe_items". Table-level GRANTs, same real "two
+gates" lesson as phase 5 (anon) and phase 10 (service_role), had only
+ever been given to the `anon` role, but a real authenticated PostgREST
+request runs as `authenticated`, a role that had never been granted
+anything. Fixed with `0011_grant_authenticated_access.sql`. Retested
+after the fix: real login, real 401 with no token, real 200s on
+`/plan-trip`, `/style-me` (correct real outfit, real signed photo
+URLs), `/wardrobe` (78 real items), `/inspiration` (22 real items),
+and a real `trips` row confirmed saved with the correct real
+`user_id`. `pytest tests/`, all 18 real tests updated and passing,
+`test_api.py` now uses FastAPI's own `app.dependency_overrides`
+pattern to test request validation independent of a live login, a
+real, live bug found writing THOSE tests too: overriding
+`app.dependency_overrides` is a module-level dict, set once for the
+whole file, not "from this point in the file onward" as first
+assumed, fixed by having each test set or clear it explicitly itself.
+
 ---
 
 ## 7. Cloud hosting and costs
